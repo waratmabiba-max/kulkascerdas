@@ -65,7 +65,7 @@ export function NotificationBell({ items }) {
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative inline-block" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`relative p-2 rounded-full hover:bg-gray-100 transition ${
@@ -84,79 +84,87 @@ export function NotificationBell({ items }) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm min-w-[280px] max-h-96 overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-          {/* Header */}
-          <div className="sticky top-0 bg-white p-3 border-b border-gray-100 rounded-t-xl">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-gray-800">🔔 Notifikasi</h3>
-              {notifications.length > 0 && (
-                <span className="text-xs text-gray-400">
-                  {notifications.length} item
-                </span>
+        <>
+          {/* Overlay untuk menutup dropdown saat klik di luar (khusus mobile) */}
+          <div 
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
+            onClick={() => setIsOpen(false)}
+          />
+          
+          <div className="absolute right-0 mt-2 w-screen max-w-sm min-w-[280px] max-h-[80vh] overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200 z-50 md:w-80">
+            {/* Header */}
+            <div className="sticky top-0 bg-white p-3 border-b border-gray-100 rounded-t-xl">
+              <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-gray-800">🔔 Notifikasi</h3>
+                {notifications.length > 0 && (
+                  <span className="text-xs text-gray-400">
+                    {notifications.length} item
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-2">
+              {notifications.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-4xl mb-2">✨</p>
+                  <p className="text-gray-500 text-sm">Semua stok aman!</p>
+                  <p className="text-gray-400 text-xs">Tidak ada item yang perlu perhatian</p>
+                </div>
+              ) : (
+                <>
+                  {/* Kadaluarsa */}
+                  {expiredItems.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-xs font-semibold text-red-600 px-2 py-1">
+                        🔴 Kadaluarsa ({expiredItems.length})
+                      </p>
+                      {expiredItems.map(item => (
+                        <NotificationItem key={item.id} item={item} status="expired" />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Kritis */}
+                  {criticalItems.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-xs font-semibold text-orange-600 px-2 py-1">
+                        🚨 Segera ({criticalItems.length})
+                      </p>
+                      {criticalItems.map(item => (
+                        <NotificationItem key={item.id} item={item} status="critical" />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Warning */}
+                  {warningItems.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-yellow-600 px-2 py-1">
+                        ⚠️ Perhatikan ({warningItems.length})
+                      </p>
+                      {warningItems.map(item => (
+                        <NotificationItem key={item.id} item={item} status="warning" />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Link ke waste history jika ada expired */}
+                  {expiredItems.length > 0 && (
+                    <Link 
+                      href="/waste"
+                      className="block mt-2 text-center text-xs text-blue-600 hover:text-blue-700 py-2 border-t border-gray-100"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      Lihat histori pembuangan →
+                    </Link>
+                  )}
+                </>
               )}
             </div>
           </div>
-
-          {/* Content */}
-          <div className="p-2">
-            {notifications.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-4xl mb-2">✨</p>
-                <p className="text-gray-500 text-sm">Semua stok aman!</p>
-                <p className="text-gray-400 text-xs">Tidak ada item yang perlu perhatian</p>
-              </div>
-            ) : (
-              <>
-                {/* Kadaluarsa */}
-                {expiredItems.length > 0 && (
-                  <div className="mb-2">
-                    <p className="text-xs font-semibold text-red-600 px-2 py-1">
-                      🔴 Kadaluarsa ({expiredItems.length})
-                    </p>
-                    {expiredItems.map(item => (
-                      <NotificationItem key={item.id} item={item} status="expired" />
-                    ))}
-                  </div>
-                )}
-
-                {/* Kritis */}
-                {criticalItems.length > 0 && (
-                  <div className="mb-2">
-                    <p className="text-xs font-semibold text-orange-600 px-2 py-1">
-                      🚨 Segera ({criticalItems.length})
-                    </p>
-                    {criticalItems.map(item => (
-                      <NotificationItem key={item.id} item={item} status="critical" />
-                    ))}
-                  </div>
-                )}
-
-                {/* Warning */}
-                {warningItems.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-yellow-600 px-2 py-1">
-                      ⚠️ Perhatikan ({warningItems.length})
-                    </p>
-                    {warningItems.map(item => (
-                      <NotificationItem key={item.id} item={item} status="warning" />
-                    ))}
-                  </div>
-                )}
-
-                {/* Link ke waste history jika ada expired */}
-                {expiredItems.length > 0 && (
-                  <Link 
-                    href="/waste"
-                    className="block mt-2 text-center text-xs text-blue-600 hover:text-blue-700 py-2 border-t border-gray-100"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    Lihat histori pembuangan →
-                  </Link>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+        </>
       )}
     </div>
   );
