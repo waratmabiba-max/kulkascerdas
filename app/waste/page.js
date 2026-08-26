@@ -7,6 +7,8 @@ export default function WasteHistory() {
   const [wastes, setWastes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalLoss, setTotalLoss] = useState(0);
+  const [familyId, setFamilyId] = useState(null);
+  const [user, setUser] = useState(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -18,38 +20,48 @@ export default function WasteHistory() {
     
     try {
       // Get user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        setLoading(false);
+        return;
+      }
+      setUser(user);
+
+      // Ambil family_id
+      const { data: member, error: memberError } = await supabase
+        .from('family_members')
+        .select('family_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (memberError || !member) {
+        // User belum punya keluarga, redirect ke setup
         setLoading(false);
         return;
       }
 
-      // Get waste history
+      setFamilyId(member.family_id);
+
+      // Get waste history berdasarkan family_id (sharing data)
       const { data, error } = await supabase
         .from('waste_history')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('family_id', member.family_id)
         .order('discarded_at', { ascending: false });
 
-      if (!error && data) {
+      if (error) {
+        console.error('Error fetching wastes:', error);
+      } else if (data) {
         setWastes(data);
         const total = data.reduce((sum, w) => sum + (w.estimated_loss || 0), 0);
         setTotalLoss(total);
       }
     } catch (err) {
-      console.error('Error fetching wastes:', err);
+      console.error('Error in fetchWastes:', err);
     } finally {
       setLoading(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-gray-500">Loading...</p>
-      </div>
-    );
-  }
 
   // Hitung statistik per bulan
   const getMonthlyStats = () => {
@@ -68,23 +80,50 @@ export default function WasteHistory() {
 
   const monthlyStats = getMonthlyStats();
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="text-4xl mb-2">⏳</div>
+          <p className="text-gray-500">Memuat histori...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Format tanggal
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  // Format harga
+  const formatPrice = (price) => {
+    if (!price) return 'Rp 0';
+    return 'Rp' + price.toLocaleString();
+  };
+
   return (
     <div className="max-w-md mx-auto p-4 pb-24">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 text-xl">
+        <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 text-xl transition">
           ←
         </Link>
         <h1 className="text-2xl font-bold">🗑️ Histori Pembuangan</h1>
       </div>
 
       {/* Summary Card */}
-      <div className={`${totalLoss > 0 ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200' : 'bg-green-50 border-green-200'} p-4 rounded-xl mb-4 border`}>
+      <div className={`${totalLoss > 0 ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200' : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'} p-4 rounded-xl mb-4 border`}>
         <div className="flex justify-between items-center">
           <div>
             <p className="text-sm text-gray-600">Total Kerugian</p>
             <p className={`text-2xl font-bold ${totalLoss > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              Rp{totalLoss.toLocaleString()}
+              {formatPrice(totalLoss)}
             </p>
           </div>
           <div className="text-right">
@@ -95,7 +134,7 @@ export default function WasteHistory() {
         {wastes.length > 0 && (
           <div className="mt-2 pt-2 border-t border-gray-200">
             <p className="text-xs text-gray-500">
-              Rata-rata kerugian: Rp{Math.round(totalLoss / wastes.length).toLocaleString()} per item
+              Rata-rata kerugian: {formatPrice(Math.round(totalLoss / wastes.length))} per item
             </p>
           </div>
         )}
@@ -110,10 +149,10 @@ export default function WasteHistory() {
               const [year, monthNum] = month.split('-');
               const monthName = new Date(year, monthNum - 1).toLocaleDateString('id-ID', { month: 'short' });
               return (
-                <div key={month} className="bg-gray-50 p-2 rounded-lg text-center">
+                <div key={month} className="bg-gray-50 p-2 rounded-lg text-center border border-gray-100">
                   <p className="text-xs text-gray-500">{monthName} {year}</p>
                   <p className="font-semibold text-sm">{stats.count} item</p>
-                  <p className="text-xs text-red-600">Rp{stats.loss.toLocaleString()}</p>
+                  <p className="text-xs text-red-600">{formatPrice(stats.loss)}</p>
                 </div>
               );
             })}
@@ -123,13 +162,13 @@ export default function WasteHistory() {
 
       {/* List Wastes */}
       {wastes.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="text-center py-12 animate-fade-in">
           <div className="text-6xl mb-4">✨</div>
-          <p className="text-gray-500 text-lg">Belum ada pembuangan</p>
+          <p className="text-gray-500 text-lg font-medium">Belum ada pembuangan</p>
           <p className="text-sm text-gray-400 mt-1">Pertahankan stok tetap terkendali!</p>
           <Link 
             href="/dashboard" 
-            className="inline-block mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+            className="inline-block mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium transition"
           >
             ← Kembali ke Dashboard
           </Link>
@@ -139,26 +178,31 @@ export default function WasteHistory() {
           {wastes.map((waste) => (
             <div 
               key={waste.id} 
-              className="bg-white p-3 rounded-lg shadow-sm border-l-4 border-red-300 hover:shadow transition"
+              className="bg-white p-3 rounded-lg shadow-sm border-l-4 border-red-300 hover:shadow-md transition"
             >
               <div className="flex justify-between items-start">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-800">{waste.item_name}</p>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <span>{waste.quantity} item</span>
                     {waste.estimated_loss && (
                       <span className="text-red-500 font-medium">
-                        Rp{waste.estimated_loss.toLocaleString()}
+                        {formatPrice(waste.estimated_loss)}
                       </span>
                     )}
                   </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Dibuang oleh: {waste.user_id === user?.id ? 'Anda' : 'Anggota keluarga'}
+                  </p>
                 </div>
                 <div className="text-right flex-shrink-0 ml-2">
                   <p className="text-xs text-gray-400">
-                    {new Date(waste.discarded_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
+                    {formatDate(waste.discarded_at)}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    🕐 {new Date(waste.discarded_at).toLocaleTimeString('id-ID', {
+                      hour: '2-digit',
+                      minute: '2-digit'
                     })}
                   </p>
                 </div>

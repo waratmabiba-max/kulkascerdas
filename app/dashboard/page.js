@@ -7,9 +7,7 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import toast, { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 
-// ============================================
-// UTILITY FUNCTION
-// ============================================
+// Utility function
 function getItemStatus(expiryDate) {
   const today = new Date();
   const expiry = new Date(expiryDate);
@@ -26,24 +24,38 @@ function getItemStatus(expiryDate) {
   }
 }
 
-// ============================================
-// MAIN DASHBOARD COMPONENT
-// ============================================
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [familyId, setFamilyId] = useState(null);
+  const [hasFamily, setHasFamily] = useState(null);
   const router = useRouter();
   const supabase = createClient();
 
-  // ============================================
-  // LOAD DATA
-  // ============================================
+  // Cek apakah user sudah punya keluarga
+  const checkFamily = async (userId) => {
+    const { data, error } = await supabase
+      .from('family_members')
+      .select('family_id')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error || !data) {
+      setHasFamily(false);
+      return null;
+    }
+    
+    setHasFamily(true);
+    setFamilyId(data.family_id);
+    return data.family_id;
+  };
+
+  // Load data
   const loadData = async () => {
     try {
-      // Check user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
@@ -53,11 +65,20 @@ export default function Dashboard() {
       
       setUser(user);
 
-      // Load items
+      // Cek family
+      const famId = await checkFamily(user.id);
+      
+      if (!famId) {
+        // User belum punya keluarga, redirect ke halaman setup
+        router.push('/setup');
+        return;
+      }
+
+      // Load items berdasarkan family_id (bukan user_id)
       const { data, error } = await supabase
         .from('items')
         .select('*, categories(name, icon)')
-        .eq('user_id', user.id)
+        .eq('family_id', famId)
         .order('expiry_date', { ascending: true });
 
       if (error) {
@@ -75,13 +96,12 @@ export default function Dashboard() {
     }
   };
 
-  // ============================================
-  // REALTIME SUBSCRIPTION
-  // ============================================
+  // Realtime subscription
   useEffect(() => {
     loadData();
 
-    // Setup realtime subscription
+    if (!familyId) return;
+
     const channel = supabase
       .channel('items-changes')
       .on(
@@ -101,11 +121,9 @@ export default function Dashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [familyId]);
 
-  // ============================================
-  // HANDLE DELETE ITEM
-  // ============================================
+  // Handle delete
   const handleDelete = async (id) => {
     const item = items.find(i => i.id === id);
     if (!item) return;
@@ -131,11 +149,12 @@ export default function Dashboard() {
     setDeletingId(id);
     
     try {
-      // 1. Insert ke waste_history
+      // 1. Insert ke waste_history dengan family_id
       const { error: wasteError } = await supabase
         .from('waste_history')
         .insert([{
           user_id: user.id,
+          family_id: familyId,
           item_id: item.id,
           item_name: item.name,
           quantity: item.quantity,
@@ -168,9 +187,7 @@ export default function Dashboard() {
     }
   };
 
-  // ============================================
-  // HANDLE LOGOUT
-  // ============================================
+  // Handle logout
   const handleLogout = async () => {
     if (confirm('Yakin mau logout?')) {
       await supabase.auth.signOut();
@@ -179,16 +196,12 @@ export default function Dashboard() {
     }
   };
 
-  // ============================================
-  // LOADING STATE
-  // ============================================
+  // Loading state
   if (loading && items.length === 0) {
     return <LoadingSkeleton />;
   }
 
-  // ============================================
-  // GROUP ITEMS BY STATUS
-  // ============================================
+  // Group items by status
   const grouped = {
     expired: items.filter(i => getItemStatus(i.expiry_date).status === 'expired'),
     critical: items.filter(i => getItemStatus(i.expiry_date).status === 'critical'),
@@ -196,7 +209,6 @@ export default function Dashboard() {
     safe: items.filter(i => getItemStatus(i.expiry_date).status === 'safe'),
   };
 
-  // Hitung total kerugian
   const totalLoss = items
     .filter(i => getItemStatus(i.expiry_date).status === 'expired')
     .reduce((sum, i) => sum + (i.price_per_unit || 0) * (i.quantity || 0), 0);
@@ -204,9 +216,6 @@ export default function Dashboard() {
   const totalItems = items.length;
   const needAttention = grouped.expired.length + grouped.critical.length + grouped.warning.length;
 
-  // ============================================
-  // RENDER
-  // ============================================
   return (
     <>
       <Toaster 
@@ -235,9 +244,7 @@ export default function Dashboard() {
       />
 
       <div className="max-w-md mx-auto p-4 pb-24 min-h-screen bg-gray-50">
-        {/* ============================================
-            HEADER
-        ============================================ */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-gray-800">🧊 Kulkas Cerdas</h1>
           <div className="flex items-center gap-2">
@@ -249,10 +256,6 @@ export default function Dashboard() {
             >
               📊
             </Link>
-            
-            {/* ============================================
-                BUTTON LOGOUT - OPSI 2 (Icon + Teks)
-            ============================================ */}
             <button 
               onClick={handleLogout}
               className="flex items-center gap-2 text-sm bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-600 px-4 py-2 rounded-lg font-medium transition border border-gray-200 hover:border-red-200"
@@ -263,28 +266,25 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ============================================
-            USER INFO
-        ============================================ */}
+        {/* User info */}
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-xl mb-4 text-sm text-green-700 border border-green-200">
           <div className="flex items-center gap-2">
             <span>✅</span>
             <span className="font-medium">{user?.email}</span>
+            <span className="text-xs text-gray-400 ml-auto">
+              👨‍👩‍👦 Keluarga
+            </span>
           </div>
         </div>
 
-        {/* ============================================
-            ERROR MESSAGE
-        ============================================ */}
+        {/* Error message */}
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-200 animate-slide-in">
             ❌ {error}
           </div>
         )}
 
-        {/* ============================================
-            SUMMARY CARDS
-        ============================================ */}
+        {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-xl border border-blue-200">
             <p className="text-xs text-gray-600">Total Stok</p>
@@ -315,9 +315,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ============================================
-            QUICK ACTION: LIHAT HISTORI
-        ============================================ */}
+        {/* Quick Action */}
         {totalLoss > 0 && (
           <Link href="/waste" className="block mb-4">
             <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-center hover:bg-red-100 transition animate-slide-in">
@@ -328,20 +326,16 @@ export default function Dashboard() {
           </Link>
         )}
 
-        {/* ============================================
-            TOMBOL TAMBAH STOK
-        ============================================ */}
+        {/* Tombol Tambah */}
         <Link href="/items/add">
           <button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition mb-4 shadow-md hover:shadow-lg active:scale-[0.98]">
             ➕ Tambah Stok
           </button>
         </Link>
 
-        {/* ============================================
-            ITEMS LIST - GROUPED BY STATUS
-        ============================================ */}
+        {/* Items List */}
         <div className="space-y-4">
-          {/* Kadaluarsa */}
+          {/* ... (sama seperti sebelumnya, tidak berubah) */}
           {grouped.expired.length > 0 && (
             <div>
               <h2 className="font-semibold text-red-600 mb-2 flex items-center gap-2">
@@ -362,7 +356,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Kritis */}
           {grouped.critical.length > 0 && (
             <div>
               <h2 className="font-semibold text-orange-500 mb-2 flex items-center gap-2">
@@ -383,7 +376,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Warning */}
           {grouped.warning.length > 0 && (
             <div>
               <h2 className="font-semibold text-yellow-600 mb-2 flex items-center gap-2">
@@ -404,7 +396,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Aman */}
           {grouped.safe.length > 0 && (
             <div>
               <h2 className="font-semibold text-green-600 mb-2 flex items-center gap-2">
@@ -425,7 +416,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Kosong */}
           {totalItems === 0 && (
             <div className="text-center py-16 animate-fade-in">
               <div className="text-7xl mb-4">🕊️</div>
@@ -444,11 +434,8 @@ export default function Dashboard() {
   );
 }
 
-// ============================================
-// ITEM CARD COMPONENT
-// ============================================
+// ItemCard Component (sama seperti sebelumnya)
 function ItemCard({ item, status, onDelete, isDeleting }) {
-  // Status mapping
   const statusColors = {
     expired: 'border-red-500 bg-red-50',
     critical: 'border-orange-500 bg-orange-50',
@@ -464,29 +451,7 @@ function ItemCard({ item, status, onDelete, isDeleting }) {
   };
 
   const colorClass = statusColors[status] || 'border-gray-300 bg-white';
-
-  // Hitung sisa hari
-  const getDaysLeft = (expiryDate) => {
-    const diff = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-    return diff;
-  };
-
-  const daysLeft = getDaysLeft(item.expiry_date);
-
-  // Format tanggal
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  // Format harga
-  const formatPrice = (price) => {
-    if (!price) return '';
-    return 'Rp' + price.toLocaleString();
-  };
+  const daysLeft = Math.ceil((new Date(item.expiry_date) - new Date()) / (1000 * 60 * 60 * 24));
 
   return (
     <div className={`border-l-4 ${colorClass} bg-white p-3 rounded-lg shadow-sm mb-2 hover:shadow-md transition-all duration-200`}>
@@ -496,19 +461,17 @@ function ItemCard({ item, status, onDelete, isDeleting }) {
             <span className="text-xl">{item.categories?.icon || '📦'}</span>
             <h3 className="font-semibold text-gray-800 truncate">{item.name}</h3>
           </div>
-          
           <p className="text-sm text-gray-600">
             {item.quantity} {item.unit}
             {item.price_per_unit && (
               <span className="text-gray-400 ml-1">
-                · {formatPrice(item.price_per_unit)}/unit
+                · Rp{item.price_per_unit.toLocaleString()}/unit
               </span>
             )}
           </p>
-          
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
             <p className="text-xs text-gray-400">
-              📅 {formatDate(item.expiry_date)}
+              📅 {new Date(item.expiry_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
             <p className={`text-xs font-medium ${
               status === 'expired' ? 'text-red-600' :
@@ -520,12 +483,10 @@ function ItemCard({ item, status, onDelete, isDeleting }) {
               {status !== 'safe' && status !== 'expired' && ` (${daysLeft} hari)`}
             </p>
           </div>
-          
           {item.notes && (
             <p className="text-xs text-gray-400 mt-1 truncate">📝 {item.notes}</p>
           )}
         </div>
-        
         <button
           onClick={() => onDelete(item.id)}
           disabled={isDeleting}

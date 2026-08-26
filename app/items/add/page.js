@@ -10,28 +10,55 @@ export default function AddItem() {
   const [success, setSuccess] = useState(false);
   const [categories, setCategories] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [familyId, setFamilyId] = useState(null);
   const [priceValue, setPriceValue] = useState('');
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
     const fetchData = async () => {
-      // Get user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth/login');
-        return;
-      }
-      setUserId(user.id);
+      try {
+        // Get user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          router.push('/auth/login');
+          return;
+        }
+        setUserId(user.id);
 
-      // Get categories
-      const { data } = await supabase.from('categories').select('*').order('name');
-      setCategories(data || []);
+        // Get family
+        const { data: member, error: memberError } = await supabase
+          .from('family_members')
+          .select('family_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (memberError || !member) {
+          router.push('/setup');
+          return;
+        }
+        setFamilyId(member.family_id);
+
+        // Get categories
+        const { data, error: catError } = await supabase
+          .from('categories')
+          .select('*')
+          .order('name');
+
+        if (catError) {
+          console.error('Error fetching categories:', catError);
+        } else {
+          setCategories(data || []);
+        }
+      } catch (err) {
+        console.error('Error in fetchData:', err);
+        setError('Gagal memuat data: ' + err.message);
+      }
     };
     fetchData();
   }, []);
 
-  // Fungsi untuk format harga ke Rupiah
+  // Format harga ke Rupiah
   const formatRupiah = (value) => {
     if (!value) return '';
     const number = value.replace(/[^0-9]/g, '');
@@ -51,8 +78,8 @@ export default function AddItem() {
     setError('');
     setSuccess(false);
 
-    if (!userId) {
-      setError('User tidak ditemukan, silakan login ulang');
+    if (!userId || !familyId) {
+      setError('User atau keluarga tidak ditemukan. Silakan setup ulang.');
       setLoading(false);
       return;
     }
@@ -80,11 +107,12 @@ export default function AddItem() {
     }
 
     try {
-      // Insert langsung pakai supabase client
+      // Insert dengan family_id (sharing data antar user)
       const { data, error } = await supabase
         .from('items')
         .insert([{
           user_id: userId,
+          family_id: familyId,
           name: name,
           category_id: categoryId,
           quantity: quantity,
@@ -117,18 +145,21 @@ export default function AddItem() {
 
   return (
     <div className="max-w-md mx-auto p-4 pb-24">
-      <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 inline-flex items-center gap-1">
-        ← Kembali
+      {/* Header */}
+      <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 inline-flex items-center gap-1 transition">
+        <span>←</span> Kembali
       </Link>
       
       <h1 className="text-2xl font-bold mt-4 mb-6">➕ Tambah Stok</h1>
       
+      {/* Error Message */}
       {error && (
         <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-200 animate-slide-in">
           ❌ {error}
         </div>
       )}
 
+      {/* Success Message */}
       {success && (
         <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm mb-4 border border-green-200 animate-slide-in">
           ✅ Item berhasil ditambahkan! Mengalihkan...
@@ -136,6 +167,7 @@ export default function AddItem() {
       )}
       
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Nama Barang */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nama Barang <span className="text-red-500">*</span>
@@ -150,6 +182,7 @@ export default function AddItem() {
           />
         </div>
 
+        {/* Kategori */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Kategori
@@ -168,6 +201,7 @@ export default function AddItem() {
           </select>
         </div>
 
+        {/* Jumlah & Satuan */}
         <div className="flex gap-3">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -201,10 +235,13 @@ export default function AddItem() {
               <option value="box">box</option>
               <option value="botol">botol</option>
               <option value="kaleng">kaleng</option>
+              <option value="ikat">ikat</option>
+              <option value="buah">buah</option>
             </select>
           </div>
         </div>
 
+        {/* Tanggal Kadaluarsa */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Tanggal Kadaluarsa <span className="text-red-500">*</span>
@@ -219,9 +256,7 @@ export default function AddItem() {
           />
         </div>
 
-        {/* ============================================
-            FORM HARGA DENGAN RUPIAH
-        ============================================ */}
+        {/* Harga dengan Rupiah */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Harga per Satuan <span className="text-gray-400 text-xs">(opsional)</span>
@@ -246,12 +281,13 @@ export default function AddItem() {
             </p>
             {priceValue && (
               <p className="text-xs text-green-600 font-medium">
-                Rp{formatRupiah(priceValue)} / item
+                Rp{formatRupiah(priceValue)} / unit
               </p>
             )}
           </div>
         </div>
 
+        {/* Catatan */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Catatan <span className="text-gray-400 text-xs">(opsional)</span>
@@ -265,6 +301,7 @@ export default function AddItem() {
           />
         </div>
 
+        {/* Tombol Submit */}
         <button
           type="submit"
           disabled={loading || success}
