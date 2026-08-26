@@ -16,6 +16,7 @@ export const metadata = {
   keywords: ['kulkas cerdas', 'stok makanan', 'manajemen dapur', 'tracking kadaluarsa', 'keluarga'],
   authors: [{ name: 'Kulkas Cerdas Team' }],
   creator: 'Kulkas Cerdas',
+  manifest: '/manifest.json',
   publisher: 'Kulkas Cerdas',
   formatDetection: {
     email: false,
