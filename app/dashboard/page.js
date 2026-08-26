@@ -267,15 +267,31 @@ export default function Dashboard() {
         </div>
 
         {/* User info */}
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-xl mb-4 text-sm text-green-700 border border-green-200">
-          <div className="flex items-center gap-2">
-            <span>✅</span>
-            <span className="font-medium">{user?.email}</span>
-            <span className="text-xs text-gray-400 ml-auto">
-              👨‍👩‍👦 Keluarga
-            </span>
-          </div>
-        </div>
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-xl mb-4 text-sm border border-green-200">
+  <div className="flex items-center gap-2">
+    <span className="text-xl">
+      {(() => {
+        const email = user?.email || '';
+        // GANTI EMAIL DI BAWAH INI DENGAN EMAIL ASLI KALIAN
+        if (email === 'waratmabiba@gmail.com') return '👨';
+        if (email === 'nisadinifebriana92@gmail.com') return '👩';
+        return '👤';
+      })()}
+    </span>
+    <span className="font-medium text-green-700">
+      {(() => {
+        const email = user?.email || '';
+        // GANTI EMAIL DI BAWAH INI DENGAN EMAIL ASLI KALIAN
+        if (email === 'waratmabiba@gmail.com') return 'Suami';
+        if (email === 'nisadinifebriana92@gmail.com') return 'Istri';
+        return email.split('@')[0] || 'User';
+      })()}
+    </span>
+    <span className="text-xs text-gray-400 ml-auto">
+      👨‍👩‍👦 Keluarga
+    </span>
+  </div>
+</div>
 
         {/* Error message */}
         {error && (
