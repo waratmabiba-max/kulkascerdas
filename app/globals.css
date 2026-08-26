@@ -321,3 +321,36 @@ h3 {
     font-size: 16px;
   }
 }
+/* ============================================
+   PWA - SPLASH SCREEN & INSTALLATION
+   ============================================ */
+
+/* Untuk splash screen di Android */
+@media all and (display-mode: standalone) {
+  body {
+    background-color: #f9fafb;
+  }
+  
+  /* Prevent overscroll behavior */
+  html {
+    overflow: hidden;
+    height: 100%;
+  }
+  
+  body {
+    overflow: auto;
+    height: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Style untuk tombol install di browser (iOS) */
+.pwa-install-banner {
+  display: none;
+}
+
+@media (display-mode: browser) {
+  .pwa-install-banner {
+    display: block;
+  }
+}
