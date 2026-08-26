@@ -84,7 +84,7 @@ export function NotificationBell({ items }) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm min-w-[280px] max-h-96 overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200 z-50">
           {/* Header */}
           <div className="sticky top-0 bg-white p-3 border-b border-gray-100 rounded-t-xl">
             <div className="flex justify-between items-center">
@@ -190,14 +190,14 @@ function NotificationItem({ item, status }) {
   return (
     <div className={`${getStatusColor(status)} p-2 rounded-lg mb-1`}>
       <div className="flex items-center gap-2">
-        <span className="text-lg">{item.categories?.icon || '📦'}</span>
+        <span className="text-lg flex-shrink-0">{item.categories?.icon || '📦'}</span>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm text-gray-800 truncate">{item.name}</p>
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-600 truncate">
             {item.quantity} {item.unit} · {message}
           </p>
         </div>
-        <span className="text-xs whitespace-nowrap">
+        <span className="text-xs whitespace-nowrap flex-shrink-0">
           {status === 'expired' ? '⚠️' : `⏳${Math.abs(diffDays)}d`}
         </span>
       </div>
